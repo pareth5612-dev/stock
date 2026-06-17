@@ -6,30 +6,34 @@ from prophet import Prophet
 
 st.set_page_config(page_title="Pro Market Dashboard", layout="wide")
 
+# Organized Asset Database with short display names
 categories = {
-    "Tech Giants": {"Apple": "AAPL", "Google": "GOOGL", "Microsoft": "MSFT", "Nvidia": "NVDA", "Tesla": "TSLA"},
-    "Automotive": {"Ferrari": "RACE", "Lamborghini (VW)": "VWAGY", "Ford": "F", "Toyota": "TM"},
-    "Cryptocurrency": {"Bitcoin": "BTC-USD", "Ethereum": "ETH-USD", "Solana": "SOL-USD", "Dogecoin": "DOGE-USD"},
-    "Consumer Goods": {"Coca-Cola": "KO", "McDonald's": "MCD", "Walmart": "WMT", "Nike": "NKE"}
+    "Tech": {"Apple": "AAPL", "Google": "GOOGL", "Microsoft": "MSFT", "Nvidia": "NVDA", "Tesla": "TSLA"},
+    "Vehicles": {"Ferrari": "RACE", "Ford": "F", "GM": "GM", "Toyota": "TM", "VW": "VWAGY"},
+    "Crypto": {"Bitcoin": "BTC-USD", "Ethereum": "ETH-USD", "Solana": "SOL-USD"},
+    "Currencies": {"EUR/USD": "EURUSD=X", "USD/ILS": "USDILS=X", "GBP/USD": "GBPUSD=X", "USD/JPY": "JPY=X"}
 }
 
-st.title("📈 Pro Market & Crypto Dashboard")
+st.title("📈 Market Dashboard")
 
-selected_category = st.sidebar.selectbox("Select Industry", list(categories.keys()))
-selected_asset_name = st.sidebar.selectbox(f"Select from {selected_category}", list(categories[selected_category].keys()))
+# 1. Sidebar Navigation
+selected_category = st.sidebar.selectbox("Category", list(categories.keys()))
+selected_asset_name = st.sidebar.selectbox("Asset", list(categories[selected_category].keys()))
 ticker = categories[selected_category][selected_asset_name]
 start_date = st.sidebar.date_input("Start Date", value=pd.to_datetime("2020-01-01"))
 
+# 2. Data Fetching
 @st.cache_data
 def load_data(ticker, start):
     return yf.download(ticker, start=start, auto_adjust=True)
 
 data = load_data(ticker, start_date)
 
+# 3. Dashboard Display
 if data.empty or len(data) < 2:
-    st.error("Insufficient data available for the selected asset or date range.")
+    st.error("Insufficient data. Please check the asset or date range.")
 else:
-    # Bulletproof data extraction
+    # Extract closing price safely
     close_data = data['Close']
     if isinstance(close_data, pd.DataFrame):
         close_data = close_data.iloc[:, 0]
@@ -39,15 +43,14 @@ else:
     change = current_val - previous_val
 
     st.metric(
-        label=f"Current {selected_asset_name} Price",
-        value=f"${current_val:,.2f}",
-        delta=f"${change:,.2f}"
+        label=f"Current {selected_asset_name}",
+        value=f"{current_val:,.4f}",
+        delta=f"{change:,.4f}"
     )
 
     tab1, tab2 = st.tabs(["📊 Price Chart", "🔮 AI Prediction"])
     
     with tab1:
-        st.subheader(f"Historical Chart: {selected_asset_name}")
         fig = go.Figure(data=[go.Candlestick(
             x=data.index,
             open=data['Open'].iloc[:, 0] if isinstance(data['Open'], pd.DataFrame) else data['Open'],
@@ -59,10 +62,7 @@ else:
         st.plotly_chart(fig, use_container_width=True)
 
     with tab2:
-        st.subheader("Forecast (using Prophet)")
-        # Clean data for Prophet
         df_train = pd.DataFrame({'ds': data.index, 'y': close_data.values})
-        
         m = Prophet(daily_seasonality=True)
         m.fit(df_train)
         future = m.make_future_dataframe(periods=30)

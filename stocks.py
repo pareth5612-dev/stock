@@ -16,24 +16,31 @@ categories = {
 
 st.title("📈 Pro Market & Crypto Dashboard")
 
-# 1. Subject/Category Selection
+# 1. Sidebar Selection
 selected_category = st.sidebar.selectbox("Select Industry", list(categories.keys()))
-
-# 2. Asset Selection based on Category
 selected_asset_name = st.sidebar.selectbox(f"Select from {selected_category}", list(categories[selected_category].keys()))
 ticker = categories[selected_category][selected_asset_name]
-
 start_date = st.sidebar.date_input("Start Date", value=pd.to_datetime("2020-01-01"))
 
-# 3. Data Fetching
+# 2. Data Fetching
 @st.cache_data
 def load_data(ticker, start):
     return yf.download(ticker, start=start)
 
 data = load_data(ticker, start_date)
 
-# Displaying Content
-if not data.empty:
+# 3. Display Metrics and Tabs
+if not data.empty and len(data) > 1:
+    # Calculate current price and change for the metric
+    current_price = data['Close'].iloc[-1].item()
+    previous_price = data['Close'].iloc[-2].item()
+    change = current_price - previous_price
+    
+    # Show Red/Green Metric
+    st.metric(label=f"Current {selected_asset_name} Price", 
+              value=f"${current_price:.2f}", 
+              delta=f"${change:.2f}")
+
     tab1, tab2 = st.tabs(["📊 Price Chart", "🔮 AI Prediction"])
     
     with tab1:
@@ -56,4 +63,4 @@ if not data.empty:
         fig2.add_trace(go.Scatter(x=data.index, y=data['Close'], name='Actual Price', line=dict(color='blue')))
         st.plotly_chart(fig2, use_container_width=True)
 else:
-    st.error("No data found for this selection.")
+    st.error("No data found. Please check the symbol or date range.")
